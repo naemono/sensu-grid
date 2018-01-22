@@ -9,8 +9,17 @@ from flask import render_template
 from flask import abort
 
 from reverseproxied import ReverseProxied
-from griddata import *
-from gridconfig import *
+from gridcheck import check_connection
+from griddata import (
+    agg_data,
+    get_data,
+    agg_host_data,
+    get_stashes,
+    get_filter_data,
+    get_clients,
+    get_events
+)
+from gridconfig import DevConfig
 
 from multiprocessing.dummy import Pool as ThreadPool
 # https://stackoverflow.com/questions/2846653/how-to-use-threading-in-python
@@ -24,6 +33,11 @@ myconfig = DevConfig
 app.config.from_object(myconfig)
 dcs = app.config['DCS']
 appcfg = app.config['APPCFG']
+
+
+# Python3 doesn't have cmp
+def _cmp(x, y):
+    return (x > y) - (x < y)
 
 
 def get_agg_data(dc):
@@ -88,7 +102,8 @@ def events(d, filters=''):
     if dc_found is False:
         abort(404)
 
-    results = sorted(results, lambda x, y: cmp(x['check']['status'], y['check']['status']), reverse=True)
+    results = sorted(results, lambda x, y: _cmp(
+        x['check']['status'], y['check']['status']), reverse=True)
 
     return render_template('events.html', dc=dc, data=results, filter_data=get_filter_data(dcs), appcfg=appcfg)
 
@@ -146,6 +161,7 @@ def icon_for_event(event):
         return 'check-circle'
 
     return 'question-circle'
+
 
 if __name__ == '__main__':
 
