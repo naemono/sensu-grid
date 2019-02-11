@@ -18,6 +18,7 @@ from griddata import (
     agg_data,
     get_data,
     agg_host_data,
+    ensure_jwt,
     get_stashes,
     get_filter_data,
     get_clients,
@@ -110,12 +111,13 @@ def get_agg_data(dc):
         data_futures = list()
         stashes_futures = list()
         filters_futures = list()
+        jwt = ensure_jwt(timeout, dc)
         data_executor = concurrent.futures.ThreadPoolExecutor(1)
-        data_futures.append(data_executor.submit(get_data, dc, timeout))
+        data_futures.append(data_executor.submit(get_data, dc, timeout, jwt))
         stashes_executor = concurrent.futures.ThreadPoolExecutor(1)
-        stashes_futures.append(stashes_executor.submit(get_stashes, dc, timeout))
+        stashes_futures.append(stashes_executor.submit(get_stashes, dc, timeout, jwt))
         filters_executor = concurrent.futures.ThreadPoolExecutor(1)
-        filters_futures.append(filters_executor.submit(filter_data, timeout, dc))
+        filters_futures.append(filters_executor.submit(filter_data, timeout, dc, jwt))
         for future_result in as_completed(data_futures):
             data = future_result.result()
         for future_result in as_completed(stashes_futures):
@@ -141,8 +143,11 @@ def root():
     for future_result in as_completed(futures):
         agg_data, filtered_data = future_result.result()
         aggregated.append(agg_data)
-        filters.append(filtered_data)
-    return render_template('data.html', dcs=dcs, data=aggregated, filter_data=filters, appcfg=appcfg)
+        filters.extend(filtered_data)
+        for _filter in filtered_data:
+            if _filter not in filters:
+                filters.extend(_filter)
+    return render_template('data.html', dcs=dcs, data=sorted(aggregated, key=lambda dc: dc["name"]), filter_data=filters, appcfg=appcfg)
 
 
 @app.route('/filtered/<string:filters>', methods=['GET'])
